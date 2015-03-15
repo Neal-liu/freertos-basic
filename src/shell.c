@@ -25,6 +25,8 @@ void host_command(int, char **);
 void mmtest_command(int, char **);
 void test_command(int, char **);
 void _command(int, char **);
+int fibonacci(int);
+int intToString(char []);
 
 #define MKCL(n, d) {.name=#n, .fptr=n ## _command, .desc=d}
 
@@ -63,6 +65,9 @@ int parse_command(char *str, char *argv[]){
 
 void ls_command(int n, char *argv[]){
     fio_printf(1,"\r\n"); 
+
+	fio_printf(1,"Hello , this is ls command !!\r\n");
+
     int dir;
     if(n == 0){
         dir = fs_opendir("");
@@ -73,6 +78,7 @@ void ls_command(int n, char *argv[]){
         fio_printf(1, "Too many argument!\r\n");
         return;
     }
+
 (void)dir;   // Use dir
 }
 
@@ -163,9 +169,18 @@ void help_command(int n,char *argv[]){
 void test_command(int n, char *argv[]) {
     int handle;
     int error;
+	int fib, result;
 
     fio_printf(1, "\r\n");
-    
+
+	fib = intToString(argv[1]);
+	fib = atoi(argv[1]);
+	fio_printf(1, "input fib = %d\r\n", fib);
+//	for(int i=0 ; i<fib ; i++){
+		result = fibonacci(fib);
+		fio_printf(1, "fibonacci is %d. \r\n", result);
+//	}
+
     handle = host_action(SYS_SYSTEM, "mkdir -p output");
     handle = host_action(SYS_SYSTEM, "touch output/syslog");
 
@@ -201,3 +216,44 @@ cmdfunc *do_command(const char *cmd){
 	}
 	return NULL;	
 }
+
+int fibonacci(int x){
+	int previous = -1;
+	int result = 1;
+	int i = 0, sum = 0;
+
+	for(i = 0 ; i <= x ; i++){
+		sum = result + previous;
+		previous = result;
+		result = sum;
+	}
+
+	return result;
+}
+
+int intToString(char a[]){
+
+	int c, sign, offset, n = 0;
+
+	if(a[0] == '-'){		// Handle negative integers
+		sign = -1;
+	}
+
+	if(sign == -1){
+		offset = 1;			// Set starting position to convert
+	}
+	else
+		offset = 0;
+
+	for(c = offset ; a[c] != '\0' ; c++){
+		n = n*10 + a[c]-'0';
+	}
+
+	if(sign == -1){
+		n = -n;
+	}
+
+	return n;
+}
+
+
