@@ -24,9 +24,10 @@ void help_command(int, char **);
 void host_command(int, char **);
 void mmtest_command(int, char **);
 void test_command(int, char **);
+void new_command(int, char**);
 void _command(int, char **);
 int fibonacci(int);
-int intToString(char []);
+int stringToInt(char []);
 
 #define MKCL(n, d) {.name=#n, .fptr=n ## _command, .desc=d}
 
@@ -39,6 +40,7 @@ cmdlist cl[]={
 	MKCL(mmtest, "heap memory allocation test"),
 	MKCL(help, "help"),
 	MKCL(test, "test new function"),
+	MKCL(new, "create new tasks"),
 	MKCL(, ""),
 };
 
@@ -166,6 +168,27 @@ void help_command(int n,char *argv[]){
 	}
 }
 
+/*Pointer to the task entry function. Tasks must be implemented 
+to never return (i.e. continuous loop) */
+void task_func(void *pvParameters){
+
+	while(1);
+}
+
+void new_command(int n, char *argv[]){
+
+	int taskNum = 0;
+
+    fio_printf(1, "\r\n");
+	taskNum = stringToInt(argv[1]);
+//	fio_printf(1, "argv[1] = %d\r\n",taskNum);
+	for(int i = 0 ; i < taskNum ; i++){
+		xTaskCreate(task_func, 
+					(signed portCHAR *) "neal",
+					512 /*stack size*/, NULL, tskIDLE_PRIORITY + 1, NULL);	// tskIDLE_PRIORITY initial is 0
+	}
+
+}
 void test_command(int n, char *argv[]) {
     int handle;
     int error;
@@ -173,8 +196,8 @@ void test_command(int n, char *argv[]) {
 
     fio_printf(1, "\r\n");
 
-	fib = intToString(argv[1]);
-	fib = atoi(argv[1]);
+	fib = stringToInt(argv[1]);
+//	fib = atoi(argv[1]);
 	fio_printf(1, "input fib = %d\r\n", fib);
 //	for(int i=0 ; i<fib ; i++){
 		result = fibonacci(fib);
@@ -231,7 +254,7 @@ int fibonacci(int x){
 	return result;
 }
 
-int intToString(char a[]){
+int stringToInt(char a[]){
 
 	int c, sign, offset, n = 0;
 
@@ -255,5 +278,6 @@ int intToString(char a[]){
 
 	return n;
 }
+
 
 
