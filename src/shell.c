@@ -19,16 +19,19 @@ void ls_command(int, char **);
 void man_command(int, char **);
 void cat_command(int, char **);
 void ps_command(int, char **);
+void pstest_command(int, char **);
 void host_command(int, char **);
 void help_command(int, char **);
 void host_command(int, char **);
 void mmtest_command(int, char **);
 void test_command(int, char **);
 void new_command(int, char**);
+void malloctest_command(int, char **);
 void _command(int, char **);
 int fibonacci(int);
 int stringToInt(char []);
 
+#define StackSize 512
 #define MKCL(n, d) {.name=#n, .fptr=n ## _command, .desc=d}
 
 cmdlist cl[]={
@@ -41,8 +44,17 @@ cmdlist cl[]={
 	MKCL(help, "help"),
 	MKCL(test, "test new function"),
 	MKCL(new, "create new tasks"),
+	MKCL(malloctest, "test pvPortMalloc() function"),
+	MKCL(pstest, "routine to create task and implements semihosting"),
 	MKCL(, ""),
 };
+
+/*Pointer to the task entry function. Tasks must be implemented 
+to never return (i.e. continuous loop) */
+void task_func(void *pvParameters){
+
+	while(1);
+}
 
 int parse_command(char *str, char *argv[]){
 	int b_quote=0, b_dbquote=0;
@@ -111,6 +123,38 @@ void ps_command(int n, char *argv[]){
         fio_printf(1, "\n\rName          State   Priority  Stack  Num\n\r");
         fio_printf(1, "*******************************************\n\r");
 	fio_printf(1, "%s\r\n", buf + 2);	
+
+}
+
+/* New a task and implements semihosting. Send ps message to host. */
+void pstest_command(int n, char *argv[]){
+	signed char buf[1024];
+	char psMessage[100];
+	int handle, error;
+
+	fio_printf(1, "\r\n");
+	xTaskCreate(task_func, 
+		(signed portCHAR *) "neal",
+		StackSize /*stack size*/, NULL, tskIDLE_PRIORITY + 1, NULL);	// tskIDLE_PRIORITY initial is 0
+
+	vTaskList(buf);
+    handle = host_action(SYS_SYSTEM, "mkdir -p output");
+	handle = host_action(SYS_SYSTEM, "touch output/syslog");
+	handle = host_action(SYS_OPEN, "output/syslog", 8);
+	if(handle == -1){
+		fio_printf(1, "open file error !!\r\n");
+	}
+
+	sprintf(psMessage, (char *) "\n\rCreate %d bytes task!\n\rName	State	Priority	Stack	Num\n\r************************", StackSize*4);
+//	fio_printf(1, psMessage);
+	error = host_action(SYS_WRITE, handle, psMessage, strlen(psMessage));
+	error = host_action(SYS_WRITE, handle, (void *)buf, strlen((const void *)buf));
+	if(error!=0){
+		fio_printf(1,"write file error!!\r\n");
+		host_action(SYS_CLOSE, handle);
+		return;
+	}
+	host_action(SYS_CLOSE, handle);
 }
 
 void cat_command(int n, char *argv[]){
@@ -168,16 +212,10 @@ void help_command(int n,char *argv[]){
 	}
 }
 
-/*Pointer to the task entry function. Tasks must be implemented 
-to never return (i.e. continuous loop) */
-void task_func(void *pvParameters){
-
-	while(1);
-}
 
 void new_command(int n, char *argv[]){
 
-	int taskNum = 0;
+	int taskNum = 1;
 
     fio_printf(1, "\r\n");
 	taskNum = stringToInt(argv[1]);
@@ -185,10 +223,32 @@ void new_command(int n, char *argv[]){
 	for(int i = 0 ; i < taskNum ; i++){
 		xTaskCreate(task_func, 
 					(signed portCHAR *) "neal",
-					512 /*stack size*/, NULL, tskIDLE_PRIORITY + 1, NULL);	// tskIDLE_PRIORITY initial is 0
+					StackSize /*stack size*/, NULL, tskIDLE_PRIORITY + 1, NULL);	// tskIDLE_PRIORITY initial is 0
 	}
 
 }
+
+void malloctest_command(int n, char *argv[]){
+	int size;
+	int count = 0;
+	char *p;
+
+	fio_printf(2, "\r\n");
+	while(1){
+		size = StackSize;
+		fio_printf(1, "try to allocate %d bytes\r\n", size);
+		p = (char *)pvPortMalloc(size);
+		fio_printf(1, "malloc return 0x%x\r\n", p);
+		if(p == NULL){
+			fio_printf(1, "Can not allocate more !! count = %d\r\n", count);
+			size *= count;
+			fio_printf(1, "The total Stack size is %d\r\n", size);
+			return;
+		}
+		count++;
+	}
+}
+
 void test_command(int n, char *argv[]) {
     int handle;
     int error;
