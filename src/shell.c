@@ -8,6 +8,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "host.h"
+#include "timers.h"
 
 typedef struct {
 	const char *name;
@@ -30,9 +31,13 @@ void malloctest_command(int, char **);
 void _command(int, char **);
 int fibonacci(int);
 int stringToInt(char []);
+void vTimerCallback(xTimerHandle);
 
 #define StackSize 512
+#define NUM_TIMERS 5
 #define MKCL(n, d) {.name=#n, .fptr=n ## _command, .desc=d}
+
+xTimerHandle xTimers[NUM_TIMERS];
 
 cmdlist cl[]={
 	MKCL(ls, "List directory"),
@@ -130,31 +135,63 @@ void ps_command(int n, char *argv[]){
 void pstest_command(int n, char *argv[]){
 	signed char buf[1024];
 	char psMessage[100];
-	int handle, error;
+	int handle, error, x=0;
+//	long x;
+	const portTickType xDelay = 500;	//100 means 1 second.
 
 	fio_printf(1, "\r\n");
-	xTaskCreate(task_func, 
-		(signed portCHAR *) "neal",
-		StackSize /*stack size*/, NULL, tskIDLE_PRIORITY + 1, NULL);	// tskIDLE_PRIORITY initial is 0
 
-	vTaskList(buf);
-    handle = host_action(SYS_SYSTEM, "mkdir -p output");
-	handle = host_action(SYS_SYSTEM, "touch output/syslog");
-	handle = host_action(SYS_OPEN, "output/syslog", 8);
+	handle = host_action(SYS_SYSTEM, "mkdir -p output");
+	handle = host_action(SYS_SYSTEM, "touch output/tasklog.txt");
+	handle = host_action(SYS_OPEN, "output/tasklog.txt", 4);
 	if(handle == -1){
 		fio_printf(1, "open file error !!\r\n");
 	}
+	while(1){
+/*	for(x = 0 ; x < NUM_TIMERS ; x++){
+	
+		xTimers[x] = xTimerCreate((const void *)"Timer", 5000/portTICK_RATE_MS, pdTRUE, (void *)x, vTimerCallback);
+		if(xTimers[x] == NULL){
+			fio_printf(1, "The timer was not created. \r\n");
+		}
+		else{
+			// Start the timer
+			if(xTimerStart( xTimers[x], 0 ) != pdPASS){
+				fio_printf(1, "The timer could not be set into the Active state. \r\n");
+			}
+		}
+*/
+		vTaskDelay(xDelay);
+		fio_printf(1, "Delay %d seconds!!\r\n", xDelay/100);
+		/* Create tasks here !! */
+		if(xTaskCreate(task_func, 
+			(signed portCHAR *) "neal",
+			StackSize /*stack size*/, NULL, tskIDLE_PRIORITY + 1, NULL) == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY)
+			break;	// tskIDLE_PRIORITY initial is 0
 
-	sprintf(psMessage, (char *) "\n\rCreate %d bytes task!\n\rName	State	Priority	Stack	Num\n\r************************", StackSize*4);
-//	fio_printf(1, psMessage);
-	error = host_action(SYS_WRITE, handle, psMessage, strlen(psMessage));
-	error = host_action(SYS_WRITE, handle, (void *)buf, strlen((const void *)buf));
-	if(error!=0){
-		fio_printf(1,"write file error!!\r\n");
-		host_action(SYS_CLOSE, handle);
-		return;
+		vTaskList(buf);
+
+		sprintf(psMessage, (char *) "\nCreate %d bytes task!\nName	State	Priority	Stack	Num\n\r************************", StackSize*4);
+	//	fio_printf(1, psMessage);
+		error = host_action(SYS_WRITE, handle, psMessage, strlen(psMessage));
+		error = host_action(SYS_WRITE, handle, (void *)buf, strlen((const void *)buf));
+		if(error!=0){
+			fio_printf(1,"write file error!!\r\n");
+			host_action(SYS_CLOSE, handle);
+			return;
+		}
+		fio_printf(1, "new task %d with %d bytes !!\r\n", x+1, StackSize*4);
+		x++;
+		/* Starting the RTOS scheduler will start the timers running as 
+		they hace already been set into the active state */
+		//vTaskStartScheduler();
 	}
 	host_action(SYS_CLOSE, handle);
+	fio_printf(1, "memory is full !!\r\n");
+}
+
+void vTimerCallback(xTimerHandle pxTimer){
+	fio_printf(1, "Do nothing.\r\n");
 }
 
 void cat_command(int n, char *argv[]){
